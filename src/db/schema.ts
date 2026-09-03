@@ -1,0 +1,320 @@
+import {
+  pgTable,
+  pgEnum,
+  uuid,
+  varchar,
+  text,
+  integer,
+  numeric,
+  timestamp,
+  jsonb,
+  uniqueIndex,
+} from "drizzle-orm/pg-core";
+import { relations } from "drizzle-orm";
+
+// ─── Enums ───────────────────────────────────────────────────────────────
+
+export const orgRoleEnum = pgEnum("org_role", [
+  "owner",
+  "event_manager",
+  "gate_staff",
+  "finance",
+]);
+
+export const eventStatusEnum = pgEnum("event_status", [
+  "draft",
+  "published",
+  "unpublished",
+  "cancelled",
+]);
+
+export const ticketTypeStatusEnum = pgEnum("ticket_type_status", [
+  "active",
+  "paused",
+  "sold_out",
+]);
+
+export const orderStatusEnum = pgEnum("order_status", [
+  "pending",
+  "paid",
+  "expired",
+  "cancelled",
+  "refunded",
+]);
+
+export const ticketStatusEnum = pgEnum("ticket_status", [
+  "pending",
+  "valid",
+  "checked_in",
+  "cancelled",
+  "refunded",
+  "invalid",
+]);
+
+export const paymentStatusEnum = pgEnum("payment_status", [
+  "initialized",
+  "pending",
+  "success",
+  "failed",
+  "abandoned",
+]);
+
+export const feeStrategyEnum = pgEnum("fee_strategy", [
+  "organizer_absorbs",
+  "buyer_pays",
+]);
+
+export const payoutStatusEnum = pgEnum("payout_status", [
+  "pending",
+  "processing",
+  "paid",
+  "failed",
+]);
+
+export const checkInMethodEnum = pgEnum("check_in_method", [
+  "qr_scan",
+  "manual_lookup",
+]);
+
+// ─── Core tables ─────────────────────────────────────────────────────────
+
+// `users` = authenticated PLATFORM users only: Organization Owners, Event
+// Managers, Gate Staff, Finance/Admin. Ticket buyers (attendees) are NOT
+// required to have a User record — they check out as guests. See `orders`
+// and `tickets` below for where guest attendee details actually live.
+export const users = pgTable("users", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  firstName: varchar("first_name", { length: 100 }).notNull(),
+  lastName: varchar("last_name", { length: 100 }).notNull(),
+  email: varchar("email", { length: 255 }).notNull().unique(),
+  phone: varchar("phone", { length: 32 }),
+  passwordHash: text("password_hash").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const organizations = pgTable("organizations", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  name: varchar("name", { length: 200 }).notNull(),
+  slug: varchar("slug", { length: 200 }).notNull().unique(),
+  ownerId: uuid("owner_id")
+    .references(() => users.id)
+    .notNull(),
+  // Platform fee config lives here so pricing changes never require engineering work.
+  feePercent: numeric("fee_percent", { precision: 5, scale: 2 })
+    .default("6.00")
+    .notNull(),
+  feeFlat: numeric("fee_flat", { precision: 12, scale: 2 }).default("0.00").notNull(),
+  feeStrategy: feeStrategyEnum("fee_strategy").default("buyer_pays").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const organizationMembers = pgTable(
+  "organization_members",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: uuid("organization_id")
+      .references(() => organizations.id, { onDelete: "cascade" })
+      .notNull(),
+    userId: uuid("user_id")
+      .references(() => users.id, { onDelete: "cascade" })
+      .notNull(),
+    role: orgRoleEnum("role").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => ({
+    uniqueMembership: uniqueIndex("org_member_unique").on(
+      t.organizationId,
+      t.userId
+    ),
+  })
+);
+
+export const events = pgTable("events", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  organizationId: uuid("organization_id")
+    .references(() => organizations.id, { onDelete: "cascade" })
+    .notNull(),
+  title: varchar("title", { length: 200 }).notNull(),
+  slug: varchar("slug", { length: 200 }).notNull().unique(),
+  description: text("description"),
+  coverImage: text("cover_image"),
+  category: varchar("category", { length: 100 }),
+  venueName: varchar("venue_name", { length: 200 }),
+  venueAddress: text("venue_address"),
+  city: varchar("city", { length: 100 }),
+  country: varchar("country", { length: 100 }).default("Nigeria"),
+  startDatetime: timestamp("start_datetime").notNull(),
+  endDatetime: timestamp("end_datetime").notNull(),
+  salesStart: timestamp("sales_start"),
+  salesEnd: timestamp("sales_end"),
+  status: eventStatusEnum("status").default("draft").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const ticketTypes = pgTable("ticket_types", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  eventId: uuid("event_id")
+    .references(() => events.id, { onDelete: "cascade" })
+    .notNull(),
+  name: varchar("name", { length: 100 }).notNull(),
+  description: text("description"),
+  price: numeric("price", { precision: 12, scale: 2 }).notNull(),
+  currency: varchar("currency", { length: 3 }).default("NGN").notNull(),
+  quantityTotal: integer("quantity_total").notNull(),
+  quantitySold: integer("quantity_sold").default(0).notNull(),
+  quantityReserved: integer("quantity_reserved").default(0).notNull(), // held during active checkout
+  salesStart: timestamp("sales_start"),
+  salesEnd: timestamp("sales_end"),
+  maxPerOrder: integer("max_per_order").default(10).notNull(),
+  status: ticketTypeStatusEnum("status").default("active").notNull(),
+});
+
+export const orders = pgTable("orders", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  eventId: uuid("event_id")
+    .references(() => events.id)
+    .notNull(),
+  // Nullable by design: attendees check out as GUESTS in V1. buyerId is only
+  // populated if a logged-in platform user (e.g. an organizer buying their
+  // own ticket) happens to place the order. Contact details below are the
+  // source of truth for who bought the ticket, independent of any account.
+  buyerId: uuid("buyer_id").references(() => users.id),
+  email: varchar("email", { length: 255 }).notNull(),
+  phone: varchar("phone", { length: 32 }).notNull(),
+  subtotal: numeric("subtotal", { precision: 12, scale: 2 }).notNull(),
+  fees: numeric("fees", { precision: 12, scale: 2 }).notNull(),
+  total: numeric("total", { precision: 12, scale: 2 }).notNull(),
+  currency: varchar("currency", { length: 3 }).default("NGN").notNull(),
+  status: orderStatusEnum("status").default("pending").notNull(),
+  paymentReference: varchar("payment_reference", { length: 100 }).unique(),
+  reservationExpiresAt: timestamp("reservation_expires_at"), // inventory hold deadline
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const tickets = pgTable("tickets", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  orderId: uuid("order_id")
+    .references(() => orders.id, { onDelete: "cascade" })
+    .notNull(),
+  eventId: uuid("event_id")
+    .references(() => events.id)
+    .notNull(),
+  ticketTypeId: uuid("ticket_type_id")
+    .references(() => ticketTypes.id)
+    .notNull(),
+  // Attendee identity lives here, not on a User record — this is who holds
+  // the ticket, regardless of whether the buyer has (or is) an account.
+  attendeeName: varchar("attendee_name", { length: 200 }).notNull(),
+  attendeeEmail: varchar("attendee_email", { length: 255 }).notNull(),
+  qrToken: varchar("qr_token", { length: 128 }).notNull().unique(), // cryptographically random, opaque
+  status: ticketStatusEnum("status").default("pending").notNull(),
+  checkedInAt: timestamp("checked_in_at"),
+  checkedInBy: uuid("checked_in_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const payments = pgTable("payments", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  orderId: uuid("order_id")
+    .references(() => orders.id, { onDelete: "cascade" })
+    .notNull(),
+  provider: varchar("provider", { length: 50 }).default("paystack").notNull(),
+  providerReference: varchar("provider_reference", { length: 150 })
+    .notNull()
+    .unique(),
+  amount: numeric("amount", { precision: 12, scale: 2 }).notNull(),
+  currency: varchar("currency", { length: 3 }).default("NGN").notNull(),
+  status: paymentStatusEnum("status").default("initialized").notNull(),
+  paidAt: timestamp("paid_at"),
+  rawProviderResponse: jsonb("raw_provider_response"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const checkIns = pgTable("check_ins", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  ticketId: uuid("ticket_id")
+    .references(() => tickets.id, { onDelete: "cascade" })
+    .notNull(),
+  eventId: uuid("event_id")
+    .references(() => events.id)
+    .notNull(),
+  checkedInBy: uuid("checked_in_by").references(() => users.id),
+  checkedInAt: timestamp("checked_in_at").defaultNow().notNull(),
+  method: checkInMethodEnum("method").default("qr_scan").notNull(),
+});
+
+export const payouts = pgTable("payouts", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  organizationId: uuid("organization_id")
+    .references(() => organizations.id)
+    .notNull(),
+  eventId: uuid("event_id").references(() => events.id),
+  grossAmount: numeric("gross_amount", { precision: 12, scale: 2 }).notNull(),
+  platformFee: numeric("platform_fee", { precision: 12, scale: 2 }).notNull(),
+  paymentProcessingFee: numeric("payment_processing_fee", {
+    precision: 12,
+    scale: 2,
+  }).notNull(),
+  netAmount: numeric("net_amount", { precision: 12, scale: 2 }).notNull(),
+  status: payoutStatusEnum("status").default("pending").notNull(),
+  paidAt: timestamp("paid_at"),
+});
+
+// ─── Relations (for Drizzle's relational query API) ─────────────────────
+
+export const usersRelations = relations(users, ({ many }) => ({
+  organizations: many(organizations),
+  memberships: many(organizationMembers),
+}));
+
+export const organizationsRelations = relations(
+  organizations,
+  ({ one, many }) => ({
+    owner: one(users, {
+      fields: [organizations.ownerId],
+      references: [users.id],
+    }),
+    members: many(organizationMembers),
+    events: many(events),
+  })
+);
+
+export const eventsRelations = relations(events, ({ one, many }) => ({
+  organization: one(organizations, {
+    fields: [events.organizationId],
+    references: [organizations.id],
+  }),
+  ticketTypes: many(ticketTypes),
+  orders: many(orders),
+}));
+
+export const ticketTypesRelations = relations(ticketTypes, ({ one, many }) => ({
+  event: one(events, {
+    fields: [ticketTypes.eventId],
+    references: [events.id],
+  }),
+  tickets: many(tickets),
+}));
+
+export const ordersRelations = relations(orders, ({ one, many }) => ({
+  event: one(events, { fields: [orders.eventId], references: [events.id] }),
+  buyer: one(users, { fields: [orders.buyerId], references: [users.id] }),
+  tickets: many(tickets),
+  payments: many(payments),
+}));
+
+export const ticketsRelations = relations(tickets, ({ one, many }) => ({
+  order: one(orders, { fields: [tickets.orderId], references: [orders.id] }),
+  event: one(events, { fields: [tickets.eventId], references: [events.id] }),
+  ticketType: one(ticketTypes, {
+    fields: [tickets.ticketTypeId],
+    references: [ticketTypes.id],
+  }),
+  checkIns: many(checkIns),
+}));
+
+export const paymentsRelations = relations(payments, ({ one }) => ({
+  order: one(orders, { fields: [payments.orderId], references: [orders.id] }),
+}));

@@ -1,0 +1,42 @@
+@import "tailwindcss";
+
+:root {
+  --background: #F8F7F3; /* Warm Ivory */
+  --foreground: #1B1D1B; /* Charcoal */
+
+  /* Ticket Buddy brand system */
+  --color-forest: #12372A;      /* Primary */
+  --color-emerald: #1B4D3E;     /* Hover / Dark */
+  --color-sage: #A8C7B8;        /* Accent */
+  --color-ivory: #F8F7F3;       /* Background */
+  --color-charcoal: #1B1D1B;    /* Text */
+  --color-secondary-text: #6B706D;
+  --color-border: #E6E6E1;
+  --color-success: #22C55E;
+  --color-warning: #F59E0B;
+  --color-error: #EF4444;
+  --color-info: #3B82F6;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-manrope);
+
+  --color-forest: var(--color-forest);
+  --color-emerald: var(--color-emerald);
+  --color-sage: var(--color-sage);
+  --color-ivory: var(--color-ivory);
+  --color-charcoal: var(--color-charcoal);
+  --color-secondary-text: var(--color-secondary-text);
+  --color-border: var(--color-border);
+  --color-success: var(--color-success);
+  --color-warning: var(--color-warning);
+  --color-error: var(--color-error);
+  --color-info: var(--color-info);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+}
