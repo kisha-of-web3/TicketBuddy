@@ -49,11 +49,18 @@ These are settled and should not drift without a deliberate, explicit change:
       middleware convention) redirecting unauthenticated visitors to `/login`
 - [x] Events dashboard (`/dashboard/events`) — list, create, view/edit,
       publish/unpublish, delete, all calling the Event CRUD API above
+- [x] Ticket Types — `GET/POST /api/events/:id/ticket-types` and
+      `PATCH/DELETE /api/ticket-types/:id`, with the same Owner/Event Manager
+      permission gate. Deletion is blocked once a tier has any sales
+      (protects paid orders); capacity can't be shrunk below units already
+      sold. UI lives on the event detail page.
+- [x] Brand palette extended to match final design files (Figma Make export):
+      ink/ink-2/ink-3 text tiers, primary-soft/pale tints, sage-pale, caution
+      and danger states, layered ivory/line shades — see `globals.css`
 - [ ] Database migrations run against a real Postgres instance (needs a
       `DATABASE_URL` — see below)
 - [ ] Edit form for existing event fields (currently create-only; the detail
       page shows fields and supports publish/delete, but not field edits yet)
-- [ ] Ticket type management API + UI
 - [ ] Guest checkout flow (Phase 2 — public event pages, ticket selection)
 
 ## Getting started (local development)
@@ -69,9 +76,11 @@ These are settled and should not drift without a deliberate, explicit change:
 
 3. **Copy the env file and fill it in:**
    ```bash
-   cp .env.example .env.local
+   cp .env.example .env
    ```
-   Use the **direct** (non-pooled) connection string for local dev.
+   Use plain `.env` (not `.env.local`) — Next.js reads both, but `drizzle-kit`
+   (the CLI that creates your tables) only reads `.env`. Use the **direct**
+   (non-pooled) connection string for local dev.
    Generate `AUTH_SECRET` with:
    ```bash
    npx auth secret
@@ -92,9 +101,11 @@ These are settled and should not drift without a deliberate, explicit change:
 1. Push this repo to GitHub.
 2. Import it into Vercel.
 3. In Project Settings → Environment Variables, add everything from
-   `.env.example`. For `DATABASE_URL`, use Neon's **pooled** connection
-   string here (the one with `-pooler` in the hostname) — the db client is
-   already configured to work correctly with it.
+   `.env.example` (these are separate from your local `.env` file — Vercel
+   doesn't read your local files, you enter them in its dashboard). For
+   `DATABASE_URL`, use Neon's **pooled** connection string here (the one
+   with `-pooler` in the hostname) — the db client is already configured
+   to work correctly with it.
 4. Set `NEXTAUTH_URL` to your production URL.
 5. Deploy. No build-time native dependencies to worry about — Drizzle
    needs nothing beyond `npm install`.
@@ -113,6 +124,9 @@ src/
         [id]/
           route.ts                # GET / PATCH / DELETE
           publish/route.ts        # POST — toggle published/unpublished
+          ticket-types/route.ts   # GET (list) / POST (create) tiers
+      ticket-types/
+        [id]/route.ts            # PATCH / DELETE a single tier
     dashboard/
       layout.tsx                 # Nav shell + sign-out (session-aware)
       events/
@@ -121,6 +135,7 @@ src/
         [id]/
           page.tsx                  # Event detail (view + publish/delete)
           event-actions.tsx          # Client component for publish/delete
+          ticket-tiers.tsx            # Client component: list + add tiers
     login/page.tsx               # Staff login
     signup/page.tsx              # Staff + organization signup
     page.tsx                     # Public landing page
@@ -167,8 +182,8 @@ is no endpoint that trusts a client-supplied organization or role.
   a ticket ID — per blueprint Section 15, scan logic will validate
   server-side.
 
-## Next steps (continuing Phase 1)
+## Next steps (continuing Phase 1 → 2)
 
 - Edit form for existing event fields (title/description/venue/dates)
-- Ticket type management API + UI
 - "Invite team member" flow (Owner adds Event Manager/Gate Staff/Finance)
+- Public event page + guest checkout flow (Phase 2)

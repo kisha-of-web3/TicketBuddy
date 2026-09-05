@@ -2,18 +2,40 @@
 
 :root {
   --background: #F8F7F3; /* Warm Ivory */
-  --foreground: #1B1D1B; /* Charcoal */
+  --foreground: #1C1C1A; /* Ink */
 
-  /* Ticket Buddy brand system */
-  --color-forest: #12372A;      /* Primary */
-  --color-emerald: #1B4D3E;     /* Hover / Dark */
-  --color-sage: #A8C7B8;        /* Accent */
-  --color-ivory: #F8F7F3;       /* Background */
-  --color-charcoal: #1B1D1B;    /* Text */
-  --color-secondary-text: #6B706D;
-  --color-border: #E6E6E1;
-  --color-success: #22C55E;
+  /* Ticket Buddy brand system — extended per design files */
+  --color-forest: #12372A;        /* Primary */
+  --color-forest-deep: #0A1F17;
+  --color-forest-mid: #2D6A4F;
+  --color-emerald: #1B4D3E;       /* Hover / Dark (kept for existing usage) */
+  --color-primary-soft: #E8F0EC;
+  --color-primary-pale: #D4E4DC;
+
+  --color-sage: #A8C7B8;
+  --color-sage-light: #D4E6DC;
+  --color-sage-pale: #EBF4EF;
+
+  --color-ivory: #F8F7F3;
+  --color-ivory-2: #F0EEE9;
+  --color-ivory-3: #E8E5DF;
+
+  --color-line: #E2DED8;
+  --color-line-2: #C8C4BC;
+  --color-border: #E2DED8; /* alias kept for existing components */
+
+  --color-charcoal: #1C1C1A;      /* alias kept for existing components */
+  --color-ink: #1C1C1A;
+  --color-ink-2: #6B6860;
+  --color-ink-3: #9E9C98;
+  --color-secondary-text: #6B6860;
+
+  --color-success: #2D6A4F;
+  --color-caution: #B5912E;
+  --color-caution-soft: #FBF3E2;
   --color-warning: #F59E0B;
+  --color-danger: #C0392B;
+  --color-danger-soft: #FAE9E8;
   --color-error: #EF4444;
   --color-info: #3B82F6;
 }
@@ -24,14 +46,31 @@
   --font-sans: var(--font-manrope);
 
   --color-forest: var(--color-forest);
+  --color-forest-deep: var(--color-forest-deep);
+  --color-forest-mid: var(--color-forest-mid);
   --color-emerald: var(--color-emerald);
+  --color-primary-soft: var(--color-primary-soft);
+  --color-primary-pale: var(--color-primary-pale);
   --color-sage: var(--color-sage);
+  --color-sage-light: var(--color-sage-light);
+  --color-sage-pale: var(--color-sage-pale);
   --color-ivory: var(--color-ivory);
-  --color-charcoal: var(--color-charcoal);
-  --color-secondary-text: var(--color-secondary-text);
+  --color-ivory-2: var(--color-ivory-2);
+  --color-ivory-3: var(--color-ivory-3);
+  --color-line: var(--color-line);
+  --color-line-2: var(--color-line-2);
   --color-border: var(--color-border);
+  --color-charcoal: var(--color-charcoal);
+  --color-ink: var(--color-ink);
+  --color-ink-2: var(--color-ink-2);
+  --color-ink-3: var(--color-ink-3);
+  --color-secondary-text: var(--color-secondary-text);
   --color-success: var(--color-success);
+  --color-caution: var(--color-caution);
+  --color-caution-soft: var(--color-caution-soft);
   --color-warning: var(--color-warning);
+  --color-danger: var(--color-danger);
+  --color-danger-soft: var(--color-danger-soft);
   --color-error: var(--color-error);
   --color-info: var(--color-info);
 }

@@ -1,10 +1,11 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { eq } from "drizzle-orm";
+import { asc, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { events } from "@/db/schema";
+import { events, ticketTypes } from "@/db/schema";
 import { canDeleteEvent, canManageEvents, getMembership, getSessionUserId } from "@/lib/authz";
 import { EventActions } from "./event-actions";
+import { TicketTiers } from "./ticket-tiers";
 
 const statusStyles: Record<string, string> = {
   draft: "bg-border text-secondary-text",
@@ -30,6 +31,12 @@ export default async function EventDetailPage({
 
   const canManage = canManageEvents(membership.role);
   const canDelete = canDeleteEvent(membership.role);
+
+  const tiers = await db
+    .select()
+    .from(ticketTypes)
+    .where(eq(ticketTypes.eventId, event.id))
+    .orderBy(asc(ticketTypes.price));
 
   return (
     <div className="max-w-2xl">
@@ -94,6 +101,12 @@ export default async function EventDetailPage({
         status={event.status}
         canManage={canManage}
         canDelete={canDelete}
+      />
+
+      <TicketTiers
+        eventId={event.id}
+        initialTiers={tiers}
+        canManage={canManage}
       />
 
       {!canManage && (
