@@ -8,6 +8,10 @@ import { users, accounts, organizations, organizationMembers } from "@/db/schema
 import { verifyPassword } from "@/lib/password";
 import { generateUniqueSlug } from "@/lib/slug";
 
+const googleConfigured = Boolean(
+  process.env.AUTH_GOOGLE_ID && process.env.AUTH_GOOGLE_SECRET
+);
+
 export const { handlers, signIn, signOut, auth } = NextAuth({
   // The adapter persists Google-authenticated users/accounts to our own
   // `users`/`accounts` tables. It is NOT used for session storage — we keep
@@ -51,13 +55,21 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         };
       },
     }),
-    Google({
-      // allowDangerousEmailAccountLinking: Google verifies email ownership
-      // itself, so it's safe (and expected) for a staff member who first
-      // signed up with email/password to also sign in with Google using the
-      // same address, and have it resolve to the same account.
-      allowDangerousEmailAccountLinking: true,
-    }),
+    // Only registered when AUTH_GOOGLE_ID/SECRET are actually set — Google
+    // sign-in is optional (see decision log in README); when absent, the
+    // login/signup pages also hide the button so nobody hits a dead flow.
+    ...(googleConfigured
+      ? [
+          Google({
+            // allowDangerousEmailAccountLinking: Google verifies email
+            // ownership itself, so it's safe (and expected) for a staff
+            // member who first signed up with email/password to also sign
+            // in with Google using the same address, and have it resolve
+            // to the same account.
+            allowDangerousEmailAccountLinking: true,
+          }),
+        ]
+      : []),
   ],
   events: {
     // Fires only when the adapter creates a BRAND NEW user — i.e. the first

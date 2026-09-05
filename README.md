@@ -59,7 +59,10 @@ These are settled and should not drift without a deliberate, explicit change:
       auto-creates an Organization (Owner role) since there's no form step
       to collect a name mid-OAuth-flow; renaming that org isn't built yet.
       Attendees still never authenticate — this is staff-only, same as
-      email/password.
+      email/password. **Fully optional:** without `AUTH_GOOGLE_ID`/
+      `AUTH_GOOGLE_SECRET` set, the button auto-hides on both pages and the
+      provider isn't even registered — nothing breaks, email/password works
+      completely independently.
 - [x] Brand palette extended to match final design files (Figma Make export):
       ink/ink-2/ink-3 text tiers, primary-soft/pale tints, sage-pale, caution
       and danger states, layered ivory/line shades — see `globals.css`
@@ -105,8 +108,15 @@ These are settled and should not drift without a deliberate, explicit change:
      add both, Google allows multiple)
    - Copy the Client ID and Client Secret into `AUTH_GOOGLE_ID` and
      `AUTH_GOOGLE_SECRET` in `.env`
-   - Without this, everything else still works — the Google button will
-     just error if clicked. Email/password never depends on it.
+   - Google's OAuth consent screen + Client ID setup does not require
+     billing. If Cloud Console prompts for a payment method, that's a
+     general account-verification step for new/free-tier Cloud accounts,
+     not something specific to OAuth — safe to skip this section entirely
+     if you'd rather not.
+   - Without this, everything else still works — the "Continue with
+     Google" button automatically hides on the login/signup pages when
+     these env vars aren't set, and the provider isn't even registered
+     with Auth.js. Email/password is fully independent of this.
 
 6. **Run the dev server:**
    ```bash
@@ -153,8 +163,12 @@ src/
           page.tsx                  # Event detail (view + publish/delete)
           event-actions.tsx          # Client component for publish/delete
           ticket-tiers.tsx            # Client component: list + add tiers
-    login/page.tsx               # Staff login
-    signup/page.tsx              # Staff + organization signup
+    login/
+      page.tsx                    # Server wrapper — checks Google env vars
+      login-form.tsx                # Client form (hides Google button if unset)
+    signup/
+      page.tsx                    # Server wrapper — checks Google env vars
+      signup-form.tsx                # Client form (hides Google button if unset)
     page.tsx                     # Public landing page
     layout.tsx                   # Root layout, brand font + metadata
     providers.tsx                # SessionProvider wrapper (client)
