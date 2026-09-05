@@ -60,7 +60,14 @@ export async function POST(request: Request) {
   const result = await db.transaction(async (tx) => {
     const [user] = await tx
       .insert(users)
-      .values({ firstName, lastName, email, phone, passwordHash })
+      .values({
+        firstName,
+        lastName,
+        name: `${firstName} ${lastName}`,
+        email,
+        phone,
+        passwordHash,
+      })
       .returning();
 
     const [organization] = await tx

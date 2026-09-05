@@ -4,6 +4,7 @@ import { useState, type FormEvent } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { GoogleIcon } from "@/components/google-icon";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -85,6 +86,21 @@ export default function LoginPage() {
             className="w-full rounded-lg bg-forest text-ivory font-semibold py-2.5 hover:bg-emerald transition-colors disabled:opacity-60"
           >
             {loading ? "Logging in..." : "Log in"}
+          </button>
+
+          <div className="flex items-center gap-3 py-1">
+            <div className="flex-1 h-px bg-border" />
+            <span className="text-xs text-secondary-text">or</span>
+            <div className="flex-1 h-px bg-border" />
+          </div>
+
+          <button
+            type="button"
+            onClick={() => signIn("google", { callbackUrl: "/dashboard/events" })}
+            className="w-full flex items-center justify-center gap-2 rounded-lg border border-border py-2.5 font-semibold text-charcoal hover:bg-ivory transition-colors"
+          >
+            <GoogleIcon />
+            Continue with Google
           </button>
         </form>
 

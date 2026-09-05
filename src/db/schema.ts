@@ -82,16 +82,54 @@ export const checkInMethodEnum = pgEnum("check_in_method", [
 // Managers, Gate Staff, Finance/Admin. Ticket buyers (attendees) are NOT
 // required to have a User record — they check out as guests. See `orders`
 // and `tickets` below for where guest attendee details actually live.
+//
+// firstName/lastName/passwordHash are nullable because Google sign-in only
+// provides a single full name and no password — those users get `name`
+// populated instead (required by the Auth.js Drizzle adapter's AdapterUser
+// shape) and a null passwordHash, which the Credentials provider checks for
+// and rejects (an OAuth-only account can't log in with a password).
 export const users = pgTable("users", {
   id: uuid("id").defaultRandom().primaryKey(),
-  firstName: varchar("first_name", { length: 100 }).notNull(),
-  lastName: varchar("last_name", { length: 100 }).notNull(),
+  firstName: varchar("first_name", { length: 100 }),
+  lastName: varchar("last_name", { length: 100 }),
+  name: varchar("name", { length: 200 }), // full name, mainly for OAuth signups
   email: varchar("email", { length: 255 }).notNull().unique(),
+  emailVerified: timestamp("email_verified"), // set by OAuth providers
+  image: text("image"), // avatar URL from OAuth provider
   phone: varchar("phone", { length: 32 }),
-  passwordHash: text("password_hash").notNull(),
+  passwordHash: text("password_hash"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
+
+// Required by the Auth.js Drizzle adapter to support OAuth providers
+// (Google). Field names must match the adapter's expected shape exactly
+// (userId, providerAccountId, etc.) — see @auth/drizzle-adapter's
+// DefaultPostgresAccountsTable. Not used by the Credentials provider.
+export const accounts = pgTable(
+  "accounts",
+  {
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    type: varchar("type", { length: 50 }).notNull(),
+    provider: varchar("provider", { length: 50 }).notNull(),
+    providerAccountId: varchar("provider_account_id", { length: 255 }).notNull(),
+    refresh_token: text("refresh_token"),
+    access_token: text("access_token"),
+    expires_at: integer("expires_at"),
+    token_type: varchar("token_type", { length: 50 }),
+    scope: text("scope"),
+    id_token: text("id_token"),
+    session_state: varchar("session_state", { length: 255 }),
+  },
+  (account) => ({
+    uniqueProviderAccount: uniqueIndex("accounts_provider_unique").on(
+      account.provider,
+      account.providerAccountId
+    ),
+  })
+);
 
 export const organizations = pgTable("organizations", {
   id: uuid("id").defaultRandom().primaryKey(),

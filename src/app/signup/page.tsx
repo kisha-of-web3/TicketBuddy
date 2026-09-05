@@ -4,6 +4,7 @@ import { useState, type FormEvent } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { GoogleIcon } from "@/components/google-icon";
 
 type FormState = {
   firstName: string;
@@ -176,6 +177,25 @@ export default function SignupPage() {
           >
             {loading ? "Creating account..." : "Create account"}
           </button>
+
+          <div className="flex items-center gap-3 py-1">
+            <div className="flex-1 h-px bg-border" />
+            <span className="text-xs text-secondary-text">or</span>
+            <div className="flex-1 h-px bg-border" />
+          </div>
+
+          <button
+            type="button"
+            onClick={() => signIn("google", { callbackUrl: "/dashboard/events" })}
+            className="w-full flex items-center justify-center gap-2 rounded-lg border border-border py-2.5 font-semibold text-charcoal hover:bg-ivory transition-colors"
+          >
+            <GoogleIcon />
+            Continue with Google
+          </button>
+          <p className="text-xs text-secondary-text text-center -mt-1">
+            We&apos;ll set up an organization for you automatically — you can
+            rename it any time.
+          </p>
         </form>
 
         <p className="text-center text-sm text-secondary-text mt-4">

@@ -54,6 +54,12 @@ These are settled and should not drift without a deliberate, explicit change:
       permission gate. Deletion is blocked once a tier has any sales
       (protects paid orders); capacity can't be shrunk below units already
       sold. UI lives on the event detail page.
+- [x] Google sign-in for staff — email/password and Google both work and
+      resolve to the same account by email. A first-time Google sign-in
+      auto-creates an Organization (Owner role) since there's no form step
+      to collect a name mid-OAuth-flow; renaming that org isn't built yet.
+      Attendees still never authenticate — this is staff-only, same as
+      email/password.
 - [x] Brand palette extended to match final design files (Figma Make export):
       ink/ink-2/ink-3 text tiers, primary-soft/pale tints, sage-pale, caution
       and danger states, layered ivory/line shades — see `globals.css`
@@ -91,7 +97,18 @@ These are settled and should not drift without a deliberate, explicit change:
    npx drizzle-kit push
    ```
 
-5. **Run the dev server:**
+5. **(Optional) Set up Google sign-in:**
+   - Go to [console.cloud.google.com/apis/credentials](https://console.cloud.google.com/apis/credentials)
+   - Create an OAuth 2.0 Client ID (Application type: Web application)
+   - Add an Authorized redirect URI: `http://localhost:3000/api/auth/callback/google`
+     (and `https://your-vercel-domain.com/api/auth/callback/google` for production —
+     add both, Google allows multiple)
+   - Copy the Client ID and Client Secret into `AUTH_GOOGLE_ID` and
+     `AUTH_GOOGLE_SECRET` in `.env`
+   - Without this, everything else still works — the Google button will
+     just error if clicked. Email/password never depends on it.
+
+6. **Run the dev server:**
    ```bash
    npm run dev
    ```
