@@ -45,7 +45,7 @@ const LandingPage = () => {
             <Link href="/" className="flex items-center gap-3 group">
               <div className="w-10 h-10">
                 <Image
-                  src="/logo.svg"
+                  src="/logo.png"
                   alt="Ticket Buddy"
                   width={40}
                   height={40}
@@ -338,7 +338,7 @@ const LandingPage = () => {
               <div className="flex items-center gap-3 mb-4">
                 <div className="w-10 h-10">
                   <Image
-                    src="/logo.svg"
+                    src="/logo.png"
                     alt="Ticket Buddy"
                     width={40}
                     height={40}
