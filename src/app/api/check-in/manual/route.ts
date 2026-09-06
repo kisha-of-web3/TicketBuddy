@@ -1,0 +1,104 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { auth } from '@/auth';
+import { db } from '@/db';
+import { tickets, checkIns } from '@/db/schema';
+import { eq, and } from 'drizzle-orm';
+
+/**
+ * POST /api/check-in/manual
+ * Manually check in an attendee by ticket ID
+ */
+export async function POST(request: NextRequest) {
+  try {
+    const session = await auth();
+
+    if (!session || !session.user?.email) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+
+    const { ticketId, eventId } = await request.json();
+
+    if (!ticketId || !eventId) {
+      return NextResponse.json(
+        { error: 'Missing ticketId or eventId' },
+        { status: 400 }
+      );
+    }
+
+    // Find and verify ticket
+    const ticket = await db.query.tickets.findFirst({
+      where: and(eq(tickets.id, ticketId), eq(tickets.eventId, eventId)),
+    });
+
+    if (!ticket) {
+      return NextResponse.json({
+        status: 'invalid',
+        message: 'Ticket not found.',
+      });
+    }
+
+    // Check ticket status
+    if (ticket.status === 'checked_in') {
+      const checkIn = await db.query.checkIns.findFirst({
+        where: eq(checkIns.ticketId, ticket.id),
+        orderBy: (checkIns, { desc }) => [desc(checkIns.checkedInAt)],
+      });
+
+      return NextResponse.json({
+        status: 'already_checked_in',
+        message: `Already checked in at ${checkIn?.checkedInAt ? new Date(checkIn.checkedInAt).toLocaleTimeString() : 'unknown time'}`,
+        attendeeName: ticket.attendeeName,
+        ticketType: 'Standard',
+      });
+    }
+
+    if (ticket.status !== 'valid') {
+      return NextResponse.json({
+        status: 'invalid',
+        message: 'Ticket is no longer valid.',
+        attendeeName: ticket.attendeeName,
+      });
+    }
+
+    // Mark as checked in
+    const now = new Date();
+
+    await db
+      .update(tickets)
+      .set({
+        status: 'checked_in',
+        checkedInAt: now,
+      })
+      .where(eq(tickets.id, ticketId));
+
+    // Create check-in record
+    await db.insert(checkIns).values({
+      id: crypto.randomUUID(),
+      ticketId: ticket.id,
+      eventId,
+      checkedInAt: now,
+      checkedInBy: session.user.email,
+      method: 'manual_lookup',
+    });
+
+    return NextResponse.json({
+      status: 'valid',
+      message: 'Attendee checked in successfully.',
+      attendeeName: ticket.attendeeName,
+      ticketType: 'Standard',
+      checkedInAt: now.toISOString(),
+    });
+  } catch (error) {
+    console.error('Error checking in attendee:', error);
+    return NextResponse.json(
+      {
+        status: 'invalid',
+        message: 'Error checking in attendee.',
+      },
+      { status: 500 }
+    );
+  }
+}
