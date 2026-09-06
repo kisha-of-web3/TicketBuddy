@@ -1,0 +1,193 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { db } from '@/db';
+import { events, orders, tickets, payments, ticketTypes } from '@/db/schema';
+import { eq } from 'drizzle-orm';
+import crypto from 'crypto';
+
+const PAYSTACK_SECRET = process.env.PAYSTACK_SECRET_KEY;
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+
+interface CreateOrderRequest {
+  eventId: string;
+  ticketTypeId: string;
+  quantity: number;
+  buyerEmail: string;
+  buyerPhone: string;
+  attendees: Array<{ name: string; email: string }>;
+}
+
+function generateQRToken(): string {
+  return crypto.randomBytes(64).toString('hex');
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    const body: CreateOrderRequest = await request.json();
+    const { eventId, ticketTypeId, quantity, buyerEmail, buyerPhone, attendees } = body;
+
+    if (!eventId || !ticketTypeId || !quantity || !buyerEmail || !buyerPhone) {
+      return NextResponse.json(
+        { error: 'Missing required fields' },
+        { status: 400 }
+      );
+    }
+
+    if (attendees.length !== quantity) {
+      return NextResponse.json(
+        { error: 'Attendee count must match quantity' },
+        { status: 400 }
+      );
+    }
+
+    const event = await db.query.events.findFirst({
+      where: eq(events.id, eventId),
+    });
+
+    if (!event) {
+      return NextResponse.json({ error: 'Event not found' }, { status: 404 });
+    }
+
+    if (event.status !== 'published') {
+      return NextResponse.json(
+        { error: 'Event is not available for ticket sales' },
+        { status: 400 }
+      );
+    }
+
+    const ticketType = await db.query.ticketTypes.findFirst({
+      where: eq(ticketTypes.id, ticketTypeId),
+    });
+
+    if (!ticketType) {
+      return NextResponse.json(
+        { error: 'Ticket type not found' },
+        { status: 404 }
+      );
+    }
+
+    const available = ticketType.quantityTotal - ticketType.quantitySold - ticketType.quantityReserved;
+    if (available < quantity) {
+      return NextResponse.json(
+        { error: `Only ${available} tickets available` },
+        { status: 400 }
+      );
+    }
+
+    const subtotal = parseFloat(ticketType.price) * quantity;
+    const feePercent = 0.06;
+    const feeFlat = 0;
+    const fees = subtotal * feePercent + feeFlat;
+    const total = subtotal + fees;
+
+    const [order] = await db
+      .insert(orders)
+      .values({
+        eventId,
+        buyerId: null,
+        email: buyerEmail,
+        phone: buyerPhone,
+        subtotal: subtotal.toString(),
+        fees: fees.toString(),
+        total: total.toString(),
+        status: 'pending',
+        reservationExpiresAt: new Date(Date.now() + 15 * 60 * 1000),
+      })
+      .returning();
+
+    if (!order) {
+      return NextResponse.json(
+        { error: 'Failed to create order' },
+        { status: 500 }
+      );
+    }
+
+    const ticketInserts = attendees.map((attendee) => ({
+      orderId: order.id,
+      eventId,
+      ticketTypeId,
+      attendeeName: attendee.name,
+      attendeeEmail: attendee.email,
+      qrToken: generateQRToken(),
+      status: 'pending',
+    }));
+
+    await db.insert(tickets).values(ticketInserts);
+
+    await db
+      .update(ticketTypes)
+      .set({
+        quantityReserved: ticketType.quantityReserved + quantity,
+      })
+      .where(eq(ticketTypes.id, ticketTypeId));
+
+    const paystackResponse = await initializePaystackPayment({
+      amount: Math.round(total * 100),
+      email: buyerEmail,
+      reference: `TB-${order.id.slice(0, 8)}-${Date.now()}`,
+      orderId: order.id,
+      eventTitle: event.title,
+      ticketCount: quantity,
+    });
+
+    if (!paystackResponse.status) {
+      await db.delete(orders).where(eq(orders.id, order.id));
+      throw new Error('Failed to initialize payment');
+    }
+
+    await db.insert(payments).values({
+      orderId: order.id,
+      provider: 'paystack',
+      providerReference: paystackResponse.data.reference,
+      amount: total.toString(),
+      status: 'initialized',
+      rawProviderResponse: paystackResponse.data,
+    });
+
+    return NextResponse.json({
+      orderId: order.id,
+      paymentUrl: paystackResponse.data.authorization_url,
+    });
+  } catch (error) {
+    console.error('Error creating order:', error);
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'Failed to create order' },
+      { status: 500 }
+    );
+  }
+}
+
+async function initializePaystackPayment(params: {
+  amount: number;
+  email: string;
+  reference: string;
+  orderId: string;
+  eventTitle: string;
+  ticketCount: number;
+}) {
+  const url = 'https://api.paystack.co/transaction/initialize';
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${PAYSTACK_SECRET}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      amount: params.amount,
+      email: params.email,
+      reference: params.reference,
+      metadata: {
+        orderId: params.orderId,
+        eventTitle: params.eventTitle,
+        ticketCount: params.ticketCount,
+      },
+      callback_url: `${APP_URL}/payment/callback`,
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Paystack API error: ${response.statusText}`);
+  }
+
+  return response.json();
+}
