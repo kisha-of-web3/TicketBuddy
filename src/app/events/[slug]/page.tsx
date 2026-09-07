@@ -51,7 +51,7 @@ export default function EventDetailPage() {
     const fetchEvent = async () => {
       try {
         setLoading(true);
-        const response = await fetch(`/api/events/${slug}`);
+        const response = await fetch(`/api/events/slug/${slug}`);
         if (!response.ok) throw new Error('Event not found');
         const data = await response.json();
         setEvent(data);
