@@ -89,7 +89,7 @@ export async function POST(request: NextRequest) {
         subtotal: subtotal.toString(),
         fees: fees.toString(),
         total: total.toString(),
-        status: 'valid' as const,
+        status: 'pending' as const,
         reservationExpiresAt: new Date(Date.now() + 15 * 60 * 1000),
       })
       .returning();
@@ -108,7 +108,7 @@ export async function POST(request: NextRequest) {
       attendeeName: attendee.name,
       attendeeEmail: attendee.email,
       qrToken: generateQRToken(),
-      status: 'valid' as const,
+      status: 'pending' as const,
     }));
 
     await db.insert(tickets).values(ticketInserts);

@@ -72,7 +72,7 @@ export async function POST(request: NextRequest) {
       eventCity: order.event.city || 'TBA',
       tickets: ticketsWithQR,
       orderId: order.id,
-      totalAmount: order.total || 0,
+      totalAmount: Number.isFinite(Number(order.total)) ? Number(order.total) : 0,
     });
 
     if (!emailSent) {
