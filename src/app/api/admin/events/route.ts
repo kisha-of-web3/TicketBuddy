@@ -12,18 +12,21 @@ export async function GET(request: NextRequest) {
     }
 
     const allEvents = await db.query.events.findMany({
-      with: { organizer: true, ticketTypes: true },
+      with: { organization: true, ticketTypes: true },
     });
 
     const eventsWithMetrics = await Promise.all(
       allEvents.map(async (event) => {
         const eventOrders = await db.query.orders.findMany({
           where: eq(orders.eventId, event.id),
-          with: { payment: true },
+          with: { payments: true },
         });
 
-        const paidOrders = eventOrders.filter((o) => o.payment?.status === 'success');
-        const totalRevenue = paidOrders.reduce((sum, o) => sum + o.total, 0);
+        const paidOrders = eventOrders.filter((o) => o.payments?.some((p) => p.status === 'success'));
+        const totalRevenue = paidOrders.reduce((sum, o) => {
+          const totalNum = typeof o.total === 'string' ? parseFloat(o.total) : o.total;
+          return sum + totalNum;
+        }, 0);
 
         const attendees = await db.query.tickets.findMany({
           where: eq(tickets.eventId, event.id),
@@ -34,8 +37,8 @@ export async function GET(request: NextRequest) {
         return {
           id: event.id,
           title: event.title,
-          organizer: event.organizer?.name || 'Unknown',
-          organizerEmail: event.organizer?.email,
+          organizer: event.organization?.name || 'Unknown',
+          organizerEmail: event.organization?.ownerId,
           status: event.status,
           startDatetime: event.startDatetime,
           endDatetime: event.endDatetime,

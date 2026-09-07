@@ -1,6 +1,6 @@
 'use client';
 
-import QRCode from 'qrcode.react';
+import { QRCodeCanvas } from 'qrcode.react';
 import { useRef } from 'react';
 
 interface QRCodeDisplayProps {
@@ -46,7 +46,7 @@ export function QRCodeDisplay({
         ref={qrRef}
         className="p-4 bg-white rounded-lg"
       >
-        <QRCode
+        <QRCodeCanvas
           value={qrValue}
           size={200}
           level="H"

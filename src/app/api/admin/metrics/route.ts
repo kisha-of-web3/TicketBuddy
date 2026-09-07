@@ -14,15 +14,18 @@ export async function GET(request: NextRequest) {
 
     const allEvents = await db.query.events.findMany();
     const totalEvents = allEvents.length;
-    const activeEvents = allEvents.filter((e) => e.status === 'active').length;
-    const totalOrganizers = new Set(allEvents.map((e) => e.organizerId)).size;
+    const activeEvents = allEvents.filter((e) => e.status === 'published').length;
+    const totalOrganizers = new Set(allEvents.map((e) => e.organizationId)).size;
 
     const allOrders = await db.query.orders.findMany({
-      with: { payment: true },
+      with: { payments: true },
     });
 
-    const paidOrders = allOrders.filter((o) => o.payment?.status === 'success');
-    const totalRevenue = paidOrders.reduce((sum, o) => sum + o.total, 0);
+    const paidOrders = allOrders.filter((o) => o.payments?.some((p) => p.status === 'success'));
+    const totalRevenue = paidOrders.reduce((sum, o) => {
+      const totalNum = typeof o.total === 'string' ? parseFloat(o.total) : o.total;
+      return sum + totalNum;
+    }, 0);
     const platformEarnings = totalRevenue * PLATFORM_FEE;
     const organizerPayouts = totalRevenue * (1 - PLATFORM_FEE);
 
@@ -33,7 +36,10 @@ export async function GET(request: NextRequest) {
 
     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
     const recentOrders = paidOrders.filter((o) => new Date(o.createdAt) > sevenDaysAgo);
-    const recentRevenue = recentOrders.reduce((sum, o) => sum + o.total, 0);
+    const recentRevenue = recentOrders.reduce((sum, o) => {
+      const totalNum = typeof o.total === 'string' ? parseFloat(o.total) : o.total;
+      return sum + totalNum;
+    }, 0);
 
     return NextResponse.json({
       overview: { totalEvents, activeEvents, totalOrganizers, totalAttendees },

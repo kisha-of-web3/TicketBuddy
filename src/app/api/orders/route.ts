@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/db';
 import { events, orders, tickets, payments, ticketTypes } from '@/db/schema';
 import { eq } from 'drizzle-orm';
-import crypto from 'crypto';
 
 const PAYSTACK_SECRET = process.env.PAYSTACK_SECRET_KEY;
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
@@ -17,7 +16,8 @@ interface CreateOrderRequest {
 }
 
 function generateQRToken(): string {
-  return crypto.randomBytes(64).toString('hex');
+  const randomBytes = crypto.getRandomValues(new Uint8Array(64));
+  return Array.from(randomBytes).map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
 export async function POST(request: NextRequest) {
@@ -89,7 +89,7 @@ export async function POST(request: NextRequest) {
         subtotal: subtotal.toString(),
         fees: fees.toString(),
         total: total.toString(),
-        status: 'pending',
+        status: 'valid' as const,
         reservationExpiresAt: new Date(Date.now() + 15 * 60 * 1000),
       })
       .returning();
@@ -108,7 +108,7 @@ export async function POST(request: NextRequest) {
       attendeeName: attendee.name,
       attendeeEmail: attendee.email,
       qrToken: generateQRToken(),
-      status: 'pending',
+      status: 'valid' as const,
     }));
 
     await db.insert(tickets).values(ticketInserts);

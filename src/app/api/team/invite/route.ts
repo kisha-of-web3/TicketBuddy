@@ -33,7 +33,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'User already invited' }, { status: 400 });
     }
 
-    const inviteToken = crypto.randomBytes(32).toString('hex');
+    const randomBytes = crypto.getRandomValues(new Uint8Array(32));
+    const inviteToken = Array.from(randomBytes).map(b => b.toString(16).padStart(2, '0')).join('');
 
     await db.insert(organizationMembers).values({
       id: crypto.randomUUID(),

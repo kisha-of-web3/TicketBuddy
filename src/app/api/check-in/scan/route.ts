@@ -88,7 +88,7 @@ export async function POST(request: NextRequest) {
       ticketId: ticket.id,
       eventId,
       checkedInAt: now,
-      checkedInBy: session.user.email,
+      checkedInBy: session.user.id || undefined,
       method: 'qr_scan',
     });
 

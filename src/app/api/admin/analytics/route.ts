@@ -12,9 +12,9 @@ export async function GET(request: NextRequest) {
 
     const days = parseInt(request.nextUrl.searchParams.get('days') || '30');
     const startDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
-    const allOrders = await db.query.orders.findMany({ with: { payment: true } });
+    const allOrders = await db.query.orders.findMany({ with: { payments: true } });
 
-    const relevantOrders = allOrders.filter((o) => new Date(o.createdAt) >= startDate && o.payment?.status === 'success');
+    const relevantOrders = allOrders.filter((o) => new Date(o.createdAt) >= startDate && o.payments?.some((p) => p.status === 'success'));
 
     const dailyData: Record<string, { revenue: number; orders: number; platformFee: number }> = {};
 
@@ -27,9 +27,10 @@ export async function GET(request: NextRequest) {
     relevantOrders.forEach((order) => {
       const dateStr = new Date(order.createdAt).toISOString().split('T')[0];
       if (dailyData[dateStr]) {
-        dailyData[dateStr].revenue += order.total;
+        const totalNum = typeof order.total === 'string' ? parseFloat(order.total) : order.total;
+        dailyData[dateStr].revenue += totalNum;
         dailyData[dateStr].orders += 1;
-        dailyData[dateStr].platformFee += order.total * 0.06;
+        dailyData[dateStr].platformFee += totalNum * 0.06;
       }
     });
 
@@ -40,15 +41,21 @@ export async function GET(request: NextRequest) {
       platformFee: parseFloat(data.platformFee.toFixed(2)),
     }));
 
-    const totalRevenue = relevantOrders.reduce((sum, o) => sum + o.total, 0);
+    const totalRevenue = relevantOrders.reduce((sum, o) => {
+      const totalNum = typeof o.total === 'string' ? parseFloat(o.total) : o.total;
+      return sum + totalNum;
+    }, 0);
     const totalOrders = relevantOrders.length;
     const totalPlatformFee = totalRevenue * 0.06;
     const avgOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
 
     const prevPeriodStart = new Date(Date.now() - days * 2 * 24 * 60 * 60 * 1000);
     const prevPeriodEnd = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
-    const prevOrders = allOrders.filter((o) => new Date(o.createdAt) >= prevPeriodStart && new Date(o.createdAt) < prevPeriodEnd && o.payment?.status === 'success');
-    const prevRevenue = prevOrders.reduce((sum, o) => sum + o.total, 0);
+    const prevOrders = allOrders.filter((o) => new Date(o.createdAt) >= prevPeriodStart && new Date(o.createdAt) < prevPeriodEnd && o.payments?.some((p) => p.status === 'success'));
+    const prevRevenue = prevOrders.reduce((sum, o) => {
+      const totalNum = typeof o.total === 'string' ? parseFloat(o.total) : o.total;
+      return sum + totalNum;
+    }, 0);
     const growthRate = prevRevenue > 0 ? (((totalRevenue - prevRevenue) / prevRevenue) * 100).toFixed(2) : '0';
 
     return NextResponse.json({

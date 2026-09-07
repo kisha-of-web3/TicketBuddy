@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/auth';
 import { db } from '@/db';
 import { events, orders, tickets } from '@/db/schema';
+import { eq } from 'drizzle-orm';
 
 /**
  * GET /api/admin/export?format=csv|pdf&type=events|financials
@@ -24,7 +25,7 @@ export async function GET(request: NextRequest) {
       if (type === 'events') {
         // Export all events with metrics
         const allEvents = await db.query.events.findMany({
-          with: { organizer: true },
+          with: { organization: true },
         });
 
         csv =
@@ -32,34 +33,39 @@ export async function GET(request: NextRequest) {
 
         for (const event of allEvents) {
           const eventOrders = await db.query.orders.findMany({
-            where: (o) => o.eventId === event.id,
-            with: { payment: true },
+            where: eq(orders.eventId, event.id),
+            with: { payments: true },
           });
 
           const revenue = eventOrders
-            .filter((o) => o.payment?.status === 'success')
-            .reduce((sum, o) => sum + o.total, 0);
+            .filter((o) => o.payments?.some((p) => p.status === 'success'))
+            .reduce((sum, o) => {
+              const totalNum = typeof o.total === 'string' ? parseFloat(o.total) : o.total;
+              return sum + totalNum;
+            }, 0);
 
           const attendees = await db.query.tickets.findMany({
-            where: (t) => t.eventId === event.id,
+            where: eq(tickets.eventId, event.id),
           });
 
-          csv += `"${event.id}","${event.title}","${event.organizer?.name || 'N/A'}","${event.organizer?.email || 'N/A'}","${event.status}","${event.startDatetime}","${event.venueName}","${event.city}",${attendees.length},${revenue}\n`;
+          csv += `"${event.id}","${event.title}","${event.organization?.name || 'N/A'}","${event.organization?.ownerId || 'N/A'}","${event.status}","${event.startDatetime}","${event.venueName}","${event.city}",${attendees.length},${revenue}\n`;
         }
       } else if (type === 'financials') {
         // Export financial data
         const allOrders = await db.query.orders.findMany({
-          with: { event: true, payment: true },
+          with: { event: true, payments: true },
         });
 
         csv =
           'Order ID,Event,Amount,Fee (6%),Net Revenue,Status,Date,Organizer\n';
 
         for (const order of allOrders) {
-          if (order.payment?.status === 'success') {
-            const fee = order.total * 0.06;
-            const net = order.total - fee;
-            csv += `"${order.id}","${order.event?.title || 'N/A'}",${order.total},${fee},${net},"${order.payment.status}","${order.createdAt}","${order.organizerEmail}"\n`;
+          const successPayment = order.payments?.find((p) => p.status === 'success');
+          if (successPayment) {
+            const totalNum = typeof order.total === 'string' ? parseFloat(order.total) : order.total;
+            const fee = totalNum * 0.06;
+            const net = totalNum - fee;
+            csv += `"${order.id}","${order.event?.title || 'N/A'}",${totalNum},${fee},${net},"${successPayment.status}","${order.createdAt}","${order.event?.organizationId || 'N/A'}"\n`;
           }
         }
       } else if (type === 'attendees') {
@@ -85,7 +91,7 @@ export async function GET(request: NextRequest) {
     } else if (format === 'pdf') {
       // For PDF, return JSON that frontend can use to generate PDF
       const allEvents = await db.query.events.findMany({
-        with: { organizer: true },
+        with: { organization: true },
       });
 
       const reportData = {
@@ -93,7 +99,7 @@ export async function GET(request: NextRequest) {
         generatedAt: new Date().toLocaleString(),
         data: allEvents.map((e) => ({
           event: e.title,
-          organizer: e.organizer?.name,
+          organizer: e.organization?.name,
           status: e.status,
         })),
       };

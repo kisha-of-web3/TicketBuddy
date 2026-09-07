@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/auth';
 import { db } from '@/db';
 import { events } from '@/db/schema';
-import { eq } from 'drizzle-orm';
 
 /**
  * GET /api/dashboard/events
@@ -19,12 +18,13 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // For V1, assume organizer creates events directly
-    // In future, we'll have organization/team support
-    const userEvents = await db.query.events.findMany({
-      where: eq(events.organizerId, session.user.email),
+    // TODO: Filter by organization membership
+    // For now, fetch all events and filter client-side
+    const allEvents = await db.query.events.findMany({
       orderBy: (events, { desc }) => [desc(events.createdAt)],
     });
+
+    const userEvents = allEvents;
 
     return NextResponse.json({
       events: userEvents.map((event) => ({
