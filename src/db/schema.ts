@@ -155,9 +155,14 @@ export const organizationMembers = pgTable(
       .references(() => organizations.id, { onDelete: "cascade" })
       .notNull(),
     userId: uuid("user_id")
-      .references(() => users.id, { onDelete: "cascade" })
-      .notNull(),
+      .references(() => users.id, { onDelete: "cascade" }),
+    userEmail: varchar("user_email", { length: 255 }),
     role: orgRoleEnum("role").notNull(),
+    status: varchar("status", { length: 50 }).default("active").notNull(),
+    inviteToken: varchar("invite_token", { length: 255 }),
+    invitedAt: timestamp("invited_at"),
+    joinedAt: timestamp("joined_at"),
+    invitedBy: varchar("invited_by", { length: 255 }),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (t) => ({
