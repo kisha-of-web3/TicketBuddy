@@ -38,7 +38,6 @@ export async function POST(request: NextRequest) {
         const qrCode = await QRCode.toDataURL(qrValue, {
           errorCorrectionLevel: 'H',
           type: 'image/png',
-          quality: 0.95,
           margin: 1,
           color: {
             dark: '#12372A',

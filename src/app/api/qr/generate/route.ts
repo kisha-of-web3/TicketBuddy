@@ -27,7 +27,6 @@ export async function GET(request: NextRequest) {
     const qrImage = await QRCode.toDataURL(qrValue, {
       errorCorrectionLevel: 'H',
       type: 'image/png',
-      quality: 0.95,
       margin: 1,
       color: {
         dark: '#12372A', // Forest green
